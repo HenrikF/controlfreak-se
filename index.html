@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>ControlFreak har flyttat</title>
+    <link rel="canonical" href="https://course.controlfreak.se/" />
+    <style>
+      /* The ControlFreak family's colours (see HenrikF/controlfreak-design). */
+      :root {
+        color-scheme: light dark;
+        --page: #f4efe6;
+        --ink: #2c2c2a;
+        --muted: #5f5e58;
+        --purple: #a6248f;
+        --on-purple: #fdfaf2;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #1a1a18;
+          --ink: #fdfaf2;
+          --muted: #a9a79d;
+          --purple: #d873c4;
+          --on-purple: #1a1a18;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: var(--page);
+        color: var(--ink);
+        font: 17px/1.5 ui-sans-serif, system-ui, sans-serif;
+        text-align: center;
+      }
+      main {
+        max-width: 32rem;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0.5rem 0;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .buttons {
+        display: none;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 1rem;
+      }
+      button,
+      a.button {
+        font: inherit;
+        border-radius: 10px;
+        padding: 8px 16px;
+        border: 1px solid var(--purple);
+        cursor: pointer;
+        text-decoration: none;
+      }
+      button {
+        background: var(--purple);
+        color: var(--on-purple);
+      }
+      a.button {
+        background: transparent;
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ControlFreak har flyttat</h1>
+      <p id="message">Till course.controlfreak.se. Dina projekt flyttas med…</p>
+      <p class="muted" id="hint"></p>
+      <div class="buttons" id="buttons">
+        <button type="button" id="retry">Försök igen</button>
+        <a class="button" id="go" href="https://course.controlfreak.se/">Gå dit ändå</a>
+      </div>
+      <noscript>
+        <p><a href="https://course.controlfreak.se/">Fortsätt till course.controlfreak.se</a></p>
+      </noscript>
+    </main>
+    <script>
+      /*
+       * controlfreak.se – the move to course.controlfreak.se.
+       *
+       * ControlFreak used to run here, and everything a user made is stored in
+       * the browser for this address: projects and course work in localStorage
+       * (keys starting with "kartvisaren." or "controlfreak.") and the last
+       * opened map in IndexedDB ("kartvisaren.maps"). The app now runs at
+       * course.controlfreak.se, which cannot read this address's storage.
+       *
+       * This page runs here instead of the app. It reads what the app stored,
+       * hands it to https://course.controlfreak.se/flytt in a hidden iframe
+       * (same site, so the frame may write the new address's storage), and
+       * then sends the visitor to the same path, query and hash there, so old
+       * links (share links, ?ai=1, invitations) keep working. Nothing is
+       * deleted here and nothing is overwritten there: the app's /flytt only
+       * adds what is missing (see src/lib/domain-move.ts in ControlFreak).
+       *
+       * The same file is 404.html, so it also answers every old path.
+       */
+      (function () {
+        var NEW_ORIGIN = "https://course.controlfreak.se";
+        var PREFIXES = ["kartvisaren.", "controlfreak."];
+        var READY_TIMEOUT_MS = 15000;
+        var SAVE_TIMEOUT_MS = 30000;
+        var english = !/^sv\b/i.test(navigator.language || "");
+
+        var text = english
+          ? {
+              title: "ControlFreak has moved",
+              moving: "To course.controlfreak.se. Your projects are moving with it…",
+              going: "To course.controlfreak.se. Taking you there…",
+              failed:
+                "Your projects could not be moved to course.controlfreak.se. They are still " +
+                "here in this browser and nothing is lost. Try again, or go there anyway.",
+              hint: "Using another computer or browser? Open controlfreak.se there too.",
+              retry: "Try again",
+              go: "Go there anyway",
+            }
+          : {
+              title: "ControlFreak har flyttat",
+              moving: "Till course.controlfreak.se. Dina projekt flyttas med…",
+              going: "Till course.controlfreak.se. Du skickas dit…",
+              failed:
+                "Dina projekt kunde inte flyttas till course.controlfreak.se. De ligger kvar " +
+                "här i webbläsaren och ingenting har försvunnit. Försök igen, eller gå dit ändå.",
+              hint: "Använder du en annan dator eller webbläsare? Öppna controlfreak.se där också.",
+              retry: "Försök igen",
+              go: "Gå dit ändå",
+            };
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        document.documentElement.lang = english ? "en" : "sv";
+        document.title = text.title;
+        document.querySelector("h1").textContent = text.title;
+        $("retry").textContent = text.retry;
+        $("go").textContent = text.go;
+        $("hint").textContent = text.hint;
+
+        /** The same path, query and hash at the new address, with flyttat=<n>. */
+        function target(projects) {
+          var url = new URL(location.pathname + location.search + location.hash, NEW_ORIGIN);
+          if (projects !== null) url.searchParams.set("flyttat", String(projects));
+          return url.toString();
+        }
+        $("go").href = target(null);
+
+        /** The app's own keys in localStorage. */
+        function readEntries() {
+          var entries = {};
+          try {
+            for (var i = 0; i < localStorage.length; i++) {
+              var key = localStorage.key(i);
+              if (!key) continue;
+              if (!PREFIXES.some(function (p) { return key.indexOf(p) === 0; })) continue;
+              var value = localStorage.getItem(key);
+              if (value !== null) entries[key] = value;
+            }
+          } catch (e) {
+            /* No storage here: nothing to move. */
+          }
+          return entries;
+        }
+
+        /** The map cache, if the app ever created it here; [] otherwise. */
+        function readMaps() {
+          return new Promise(function (resolve) {
+            var done = false;
+            var finish = function (maps) {
+              if (!done) {
+                done = true;
+                resolve(maps);
+              }
+            };
+            setTimeout(function () { finish([]); }, 3000);
+            try {
+              var request = indexedDB.open("kartvisaren.maps");
+              // A database that did not exist: nothing was cached here.
+              request.onupgradeneeded = function () {
+                request.transaction.abort();
+                finish([]);
+              };
+              request.onerror = function () { finish([]); };
+              request.onsuccess = function () {
+                var db = request.result;
+                if (!db.objectStoreNames.contains("maps")) {
+                  db.close();
+                  finish([]);
+                  return;
+                }
+                var all = db.transaction("maps", "readonly").objectStore("maps").getAll();
+                all.onsuccess = function () {
+                  db.close();
+                  finish(all.result || []);
+                };
+                all.onerror = function () {
+                  db.close();
+                  finish([]);
+                };
+              };
+            } catch (e) {
+              finish([]);
+            }
+          });
+        }
+
+        function show(message, failed) {
+          $("message").textContent = message;
+          $("buttons").style.display = failed ? "flex" : "none";
+        }
+
+        /** Hands the data to /flytt at the new address; resolves with the result. */
+        function send(entries, maps) {
+          return new Promise(function (resolve) {
+            var frame = document.createElement("iframe");
+            frame.src = NEW_ORIGIN + "/flytt";
+            frame.title = "ControlFreak";
+            frame.setAttribute("aria-hidden", "true");
+            frame.style.cssText = "position:absolute;width:0;height:0;border:0;visibility:hidden";
+            var timer = 0;
+            var finish = function (result) {
+              clearTimeout(timer);
+              window.removeEventListener("message", onMessage);
+              frame.remove();
+              resolve(result);
+            };
+            var onMessage = function (event) {
+              if (event.origin !== NEW_ORIGIN || event.source !== frame.contentWindow) return;
+              var m = event.data || {};
+              if (m.type === "cf-move-ready") {
+                clearTimeout(timer);
+                timer = setTimeout(function () { finish(null); }, SAVE_TIMEOUT_MS);
+                frame.contentWindow.postMessage(
+                  { type: "cf-move", entries: entries, maps: maps },
+                  NEW_ORIGIN,
+                );
+              } else if (m.type === "cf-move-done") {
+                finish({ projects: Number(m.projects) || 0 });
+              } else if (m.type === "cf-move-failed") {
+                finish(null);
+              }
+            };
+            timer = setTimeout(function () { finish(null); }, READY_TIMEOUT_MS);
+            window.addEventListener("message", onMessage);
+            document.body.appendChild(frame);
+          });
+        }
+
+        function move() {
+          show(text.moving, false);
+          var entries = readEntries();
+          readMaps().then(function (maps) {
+            if (Object.keys(entries).length === 0 && maps.length === 0) {
+              // Nothing stored here: just go.
+              show(text.going, false);
+              location.replace(target(0));
+              return;
+            }
+            send(entries, maps).then(function (result) {
+              if (result) location.replace(target(result.projects));
+              else show(text.failed, true);
+            });
+          });
+        }
+
+        $("retry").addEventListener("click", move);
+        move();
+      })();
+    </script>
+  </body>
+</html>
